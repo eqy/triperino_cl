@@ -474,6 +474,14 @@ void extended_init_flat(void)
     clEnqueueWriteBuffer(cmd_queue, buf_comp_maskr, CL_TRUE, 0,\
         8*128*sizeof(uint32_t), comp_maskr_flat, 0, NULL, NULL);
     assert(!status);
+    
+    char test[11] = "TESTERINO";
+    printf("%c\n", test[0]);
+    /*
+    clEnqueueWriteBuffer(cmd_queue, buf_hash, CL_TRUE, 0,\
+        12*sizeof(char), test, 0, NULL, NULL);
+    */
+    assert(!status);
 }
 
 void setup_compute(void)
@@ -555,7 +563,7 @@ void setup_compute(void)
 
 void execute_compute(void)
 {
-    local_worksize[0] = 2;
+    local_worksize[0] = 1;
     status = clEnqueueNDRangeKernel(cmd_queue, triperino_kernel, 1, NULL,\
         global_worksize, local_worksize, 0, NULL, NULL);
     assert(!status);
