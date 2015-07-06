@@ -195,22 +195,22 @@ do_des(__global uchar *m_sbox_flat,
    	/*
 	 *	Do initial permutation (IP).
 	 */
-	l = ip_maskl_flat[(0*256) + l_in >> 24]
-	  | ip_maskl_flat[(1*256) + (l_in >> 16) & 0xff]
-	  | ip_maskl_flat[(2*256) + (l_in >> 8) & 0xff]
-	  | ip_maskl_flat[(3*256) + l_in & 0xff]
-	  | ip_maskl_flat[(4*256) + r_in >> 24]
-	  | ip_maskl_flat[(5*256) + (r_in >> 16) & 0xff]
-	  | ip_maskl_flat[(6*256) + (r_in >> 8) & 0xff]
-	  | ip_maskl_flat[(7*256) + r_in & 0xff];
-	r = ip_maskr_flat[(0*256) + l_in >> 24]
-	  | ip_maskr_flat[(1*256) + (l_in >> 16) & 0xff]
-	  | ip_maskr_flat[(2*256) + (l_in >> 8) & 0xff]
-	  | ip_maskr_flat[(3*256) + l_in & 0xff]
-	  | ip_maskr_flat[(4*256) + r_in >> 24]
-	  | ip_maskr_flat[(5*256) + (r_in >> 16) & 0xff]
-	  | ip_maskr_flat[(6*256) + (r_in >> 8) & 0xff]
-	  | ip_maskr_flat[(7*256) + r_in & 0xff];
+	l = ip_maskl_flat[(0*256) + (l_in >> 24)]
+	  | ip_maskl_flat[(1*256) + ((l_in >> 16) & 0xff)]
+	  | ip_maskl_flat[(2*256) + ((l_in >> 8) & 0xff)]
+	  | ip_maskl_flat[(3*256) + (l_in & 0xff)]
+	  | ip_maskl_flat[(4*256) + (r_in >> 24)]
+	  | ip_maskl_flat[(5*256) + ((r_in >> 16) & 0xff)]
+	  | ip_maskl_flat[(6*256) + ((r_in >> 8) & 0xff)]
+	  | ip_maskl_flat[(7*256) + (r_in & 0xff)];
+	r = ip_maskr_flat[(0*256) + (l_in >> 24)]
+	  | ip_maskr_flat[(1*256) + ((l_in >> 16) & 0xff)]
+	  | ip_maskr_flat[(2*256) + ((l_in >> 8) & 0xff)]
+	  | ip_maskr_flat[(3*256) + (l_in & 0xff)]
+	  | ip_maskr_flat[(4*256) + (r_in >> 24)]
+	  | ip_maskr_flat[(5*256) + ((r_in >> 16) & 0xff)]
+	  | ip_maskr_flat[(6*256) + ((r_in >> 8) & 0xff)]
+	  | ip_maskr_flat[(7*256) + (r_in & 0xff)];
 
 	saltbits = *data_saltbits;
 	while (count--) {
@@ -246,10 +246,10 @@ do_des(__global uchar *m_sbox_flat,
 			 * Do sbox lookups (which shrink it back to 32 bits)
 			 * and do the pbox permutation at the same time.
 			 */
-			f = psbox_flat[(0*256) + m_sbox_flat[(0*4096) + r48l >> 12]]
-			  | psbox_flat[(1*256) + m_sbox_flat[(1*4096) + r48l & 0xfff]]
-			  | psbox_flat[(2*256) + m_sbox_flat[(2*4096) + r48r >> 12]]
-			  | psbox_flat[(3*256) + m_sbox_flat[(3*4096) + r48r & 0xfff]];
+			f = psbox_flat[(0*256) + m_sbox_flat[(0*4096) + (r48l >> 12)]]
+			  | psbox_flat[(1*256) + m_sbox_flat[(1*4096) + (r48l & 0xfff)]]
+			  | psbox_flat[(2*256) + m_sbox_flat[(2*4096) + (r48r >> 12)]]
+			  | psbox_flat[(3*256) + m_sbox_flat[(3*4096) + (r48r & 0xfff)]];
 			/*
 			 * Now that we've permuted things, complete f().
 			 */
@@ -263,23 +263,25 @@ do_des(__global uchar *m_sbox_flat,
 	/*
 	 * Do final permutation (inverse of IP).
 	 */
-	*l_out	= fp_maskl_flat[(0*256) + l >> 24]
-		| fp_maskl_flat[(1*256) + (l >> 16) & 0xff]
-		| fp_maskl_flat[(2*256) + (l >> 8) & 0xff]
-		| fp_maskl_flat[(3*256) + l & 0xff]
-		| fp_maskl_flat[(4*256) + r >> 24]
-		| fp_maskl_flat[(5*256) + (r >> 16) & 0xff]
-		| fp_maskl_flat[(6*256) + (r >> 8) & 0xff]
-		| fp_maskl_flat[(7*256) + r & 0xff];
-	*r_out	= fp_maskr_flat[(0*256) + l >> 24]
-		| fp_maskr_flat[(1*256) + (l >> 16) & 0xff]
-		| fp_maskr_flat[(2*256) + (l >> 8) & 0xff]
-		| fp_maskr_flat[(3*256) + l & 0xff]
-		| fp_maskr_flat[(4*256) + r >> 24]
-		| fp_maskr_flat[(5*256) + (r >> 16) & 0xff]
-		| fp_maskr_flat[(6*256) + (r >> 8) & 0xff]
-		| fp_maskr_flat[(7*256) + r & 0xff];
-    
+	*l_out	= fp_maskl_flat[(0*256) + (l >> 24)]
+		| fp_maskl_flat[(1*256) + ((l >> 16) & 0xff)]
+		| fp_maskl_flat[(2*256) + ((l >> 8) & 0xff)]
+		| fp_maskl_flat[(3*256) + (l & 0xff)]
+		| fp_maskl_flat[(4*256) + (r >> 24)]
+		| fp_maskl_flat[(5*256) + ((r >> 16) & 0xff)]
+		| fp_maskl_flat[(6*256) + ((r >> 8) & 0xff)]
+		| fp_maskl_flat[(7*256) + (r & 0xff)];
+	*r_out	= fp_maskr_flat[(0*256) + (l >> 24)]
+		| fp_maskr_flat[(1*256) + ((l >> 16) & 0xff)]
+		| fp_maskr_flat[(2*256) + ((l >> 8) & 0xff)]
+		| fp_maskr_flat[(3*256) + (l & 0xff)]
+		| fp_maskr_flat[(4*256) + (r >> 24)]
+		| fp_maskr_flat[(5*256) + ((r >> 16) & 0xff)]
+		| fp_maskr_flat[(6*256) + ((r >> 8) & 0xff)]
+		| fp_maskr_flat[(7*256) + (r & 0xff)];
+    printf("l, r\n");
+    printf("%u\n", *l_out);
+    printf("%u\n", *r_out); 
     return(0);	
 }
 
@@ -344,7 +346,7 @@ char * __crypt_extended_r(__global uchar *m_sbox_flat,
               );
     printf("output after setkey\n");
     for (k = 0; k < 16; k++)
-        printf("%u", data_de_keysl[k]);
+        printf("%u", data_en_keysl[k]);
     printf("\n");
 
     printf("%s\n", data_output);
@@ -369,6 +371,9 @@ char * __crypt_extended_r(__global uchar *m_sbox_flat,
         printf("%u", data_output[k]);
     printf("\n");
     setup_salt(salt, data_saltbits, data_old_salt);
+    printf("output after setup_salt\n");
+    printf("%u\n", *data_saltbits);
+    printf("%u\n", *data_old_salt);
   	/*
 	 * Do it.
 	 */
@@ -392,7 +397,7 @@ char * __crypt_extended_r(__global uchar *m_sbox_flat,
 	/*
 	 * Now encode the result...
 	 */
-    
+     
 	l = (r0 >> 8);
 	p[0] = ascii64[(l >> 18) & 0x3f];
 	p[1] = ascii64[(l >> 12) & 0x3f];
@@ -487,10 +492,10 @@ void triperino(__global uchar *m_sbox_flat,
         &data_old_rawkey0, &data_old_rawkey1, data_output);
     
         int c;
-        for (c = 0; c < 5; c++)
+        for (c = 0; c < 21; c++)
         {
             pw[c] = data_output[c]; 
         }
-        printf("%c\n", data_output[0]);
+        printf("%s\n", data_output);
     }
 } 
