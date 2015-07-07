@@ -73,11 +73,13 @@
 #include "triperino_kernel.h"
 
 #define CBUFSIZ 512
-static const uint32_t trips_per_item = 16384;
-typedef enum {ICPU, GPU} hardware_t; 
+static const uint32_t trips_per_item = 32;
+typedef enum {IntelCPU, NvidiaGPU} hardware_t; 
 
-hardware_t target_platform = ICPU;
-const size_t global_worksize[1] = {4096};
+#define OPENCL1_0
+
+hardware_t target_platform = NvidiaGPU;
+const size_t global_worksize[1] = {65535};
 size_t local_worksize[1];
 cl_int status;
 cl_uint num_platforms;
@@ -441,7 +443,7 @@ void extended_init_flat(void)
     assert(!status);
 
     buf_pw = clCreateBuffer(context, CL_MEM_READ_WRITE,\
-        trips_per_item*global_worksize[0]*11*sizeof(char), NULL, &status);
+        trips_per_item*global_worksize[0]*9*sizeof(char), NULL, &status);
     assert(!status);
     buf_hash = clCreateBuffer(context, CL_MEM_READ_WRITE,\
         trips_per_item*global_worksize[0]*11*sizeof(char), NULL, &status);
@@ -452,42 +454,42 @@ void extended_init_flat(void)
     assert(!status);
     
     /* write to device memory */
-    clEnqueueWriteBuffer(cmd_queue, buf_m_sbox, CL_TRUE, 0,\
+    status = clEnqueueWriteBuffer(cmd_queue, buf_m_sbox, CL_TRUE, 0,\
         4*4096*sizeof(u_char), m_sbox_flat, 0, NULL, NULL);
     assert(!status);
-    clEnqueueWriteBuffer(cmd_queue, buf_psbox, CL_TRUE, 0,\
+    status = clEnqueueWriteBuffer(cmd_queue, buf_psbox, CL_TRUE, 0,\
         4*256*sizeof(uint32_t), psbox_flat, 0, NULL, NULL);
     assert(!status);
-    clEnqueueWriteBuffer(cmd_queue, buf_ip_maskl, CL_TRUE, 0,\
+    status = clEnqueueWriteBuffer(cmd_queue, buf_ip_maskl, CL_TRUE, 0,\
         8*256*sizeof(uint32_t), ip_maskl_flat, 0, NULL, NULL);
     assert(!status);
-    clEnqueueWriteBuffer(cmd_queue, buf_ip_maskr, CL_TRUE, 0,\
+    status = clEnqueueWriteBuffer(cmd_queue, buf_ip_maskr, CL_TRUE, 0,\
         8*256*sizeof(uint32_t), ip_maskr_flat, 0, NULL, NULL);
     assert(!status);
-    clEnqueueWriteBuffer(cmd_queue, buf_fp_maskl, CL_TRUE, 0,\
+    status = clEnqueueWriteBuffer(cmd_queue, buf_fp_maskl, CL_TRUE, 0,\
         8*256*sizeof(uint32_t), fp_maskl_flat, 0, NULL, NULL);
     assert(!status);
-    clEnqueueWriteBuffer(cmd_queue, buf_fp_maskr, CL_TRUE, 0,\
+    status = clEnqueueWriteBuffer(cmd_queue, buf_fp_maskr, CL_TRUE, 0,\
         8*256*sizeof(uint32_t), fp_maskr_flat, 0, NULL, NULL);
     assert(!status);
-    clEnqueueWriteBuffer(cmd_queue, buf_key_perm_maskl, CL_TRUE, 0,\
+    status = clEnqueueWriteBuffer(cmd_queue, buf_key_perm_maskl, CL_TRUE, 0,\
         8*128*sizeof(uint32_t), key_perm_maskl_flat, 0, NULL, NULL);
     assert(!status);
-    clEnqueueWriteBuffer(cmd_queue, buf_key_perm_maskr, CL_TRUE, 0,\
+    status = clEnqueueWriteBuffer(cmd_queue, buf_key_perm_maskr, CL_TRUE, 0,\
         8*128*sizeof(uint32_t), key_perm_maskr_flat, 0, NULL, NULL);
     assert(!status);
-    clEnqueueWriteBuffer(cmd_queue, buf_comp_maskl, CL_TRUE, 0,\
+    status = clEnqueueWriteBuffer(cmd_queue, buf_comp_maskl, CL_TRUE, 0,\
         8*128*sizeof(uint32_t), comp_maskl_flat, 0, NULL, NULL);
     assert(!status);
-    clEnqueueWriteBuffer(cmd_queue, buf_comp_maskr, CL_TRUE, 0,\
+    status = clEnqueueWriteBuffer(cmd_queue, buf_comp_maskr, CL_TRUE, 0,\
         8*128*sizeof(uint32_t), comp_maskr_flat, 0, NULL, NULL);
     assert(!status);
     
-    char test[11] = "TESTERINO";
-    /*
-    clEnqueueWriteBuffer(cmd_queue, buf_config, CL_TRUE, 0,\
-        12*sizeof(char), test, 0, NULL, NULL);
-    */
+    //char test[11] = "TESTERINO";
+    char test[11] = "";
+    status = clEnqueueWriteBuffer(cmd_queue, buf_config, CL_TRUE, 20,\
+        11*sizeof(char), test, 0, NULL, NULL);
+    assert(!status);
     /* write trips per item */
     clEnqueueWriteBuffer(cmd_queue, buf_config, CL_TRUE, 0,\
     sizeof(uint32_t), (char *) &trips_per_item, 0, NULL, NULL);
@@ -510,9 +512,16 @@ void setup_compute(void)
         clGetPlatformInfo(platforms[i], CL_PLATFORM_NAME, CBUFSIZ, c_buffer,\
         NULL);
         printf("Found Platform %s\n", c_buffer);
-        if (target_platform == ICPU) 
+        if (target_platform == IntelCPU) 
+        {
             if (strstr(c_buffer, "Intel") != NULL)
                 platform_index = i;
+        }
+        else if (target_platform == NvidiaGPU)
+        {
+            if (strstr(c_buffer, "NVIDIA") != NULL)
+                platform_index = i;
+        }
     }
     
     assert(platform_index >= 0);
@@ -525,8 +534,15 @@ void setup_compute(void)
     assert(!status);
     context = clCreateContext(NULL, num_devices, devices, NULL, NULL, &status);
     assert(!status);
+    
+    /* Nvidia only implements the older OpenCL API */
+    #ifdef OPENCL2_0
     cmd_queue = clCreateCommandQueueWithProperties(context, devices[0], 0, &status);
-    assert(!status); 
+    assert(!status);
+    #else
+    cmd_queue = clCreateCommandQueue(context, devices[0], 0, &status);
+    assert(!status);
+    #endif 
     
     extended_init_flat();
 
@@ -540,9 +556,15 @@ void setup_compute(void)
 
     status = clBuildProgram(triperino_program, num_devices, devices, NULL,\
         NULL, NULL);    
-    assert(!status);
+    if(status)
+    printf("%i\n", status);
 
+    char log[4096];
     triperino_kernel = clCreateKernel(triperino_program, "triperino", &status);
+    status = clGetProgramBuildInfo(triperino_program, devices[0],\
+    CL_PROGRAM_BUILD_LOG, 4096, &log, NULL);
+    if(status)
+    printf("%s\n", log);
     assert(!status);
     
     /*set kernel arguments */
@@ -597,21 +619,25 @@ void execute_compute(int seed_offset, char pat[11], char case_sens)
     1*sizeof(char), &case_sens, 0, NULL, NULL);
     assert(!status);
 
-    local_worksize[0] = 128;
+    local_worksize[0] = 256;
     status = clEnqueueNDRangeKernel(cmd_queue, triperino_kernel, 1, NULL,\
-        global_worksize, local_worksize, 0, NULL, NULL);
+        global_worksize, NULL, 0, NULL, NULL);
+    if(status)
+    printf("%i\n", status);
     assert(!status);
 
-    char *pw = malloc(trips_per_item*global_worksize[0]*9*sizeof(char));
     char *hash = malloc(trips_per_item*global_worksize[0]*11*sizeof(char));
+    char *pw = malloc(trips_per_item*global_worksize[0]*9*sizeof(char));
+    
+    status = clEnqueueReadBuffer(cmd_queue, buf_hash, CL_TRUE, 0,\
+    trips_per_item*global_worksize[0]*11*sizeof(char), hash, 0, NULL, NULL);
+    if(status)
+    printf("%i\n", status);
+    assert(!status);
 
     status = clEnqueueReadBuffer(cmd_queue, buf_pw, CL_TRUE, 0,\
     trips_per_item*global_worksize[0]*9*sizeof(char), pw, 0, NULL, NULL);
     assert(!status);
-    status = clEnqueueReadBuffer(cmd_queue, buf_hash, CL_TRUE, 0,\
-    trips_per_item*global_worksize[0]*11*sizeof(char), hash, 0, NULL, NULL);
-    assert(!status);
-
      
     int i;
     for (i = 0; i < global_worksize[0]; i++)
@@ -666,10 +692,12 @@ void cleanup_compute(void)
 
 int main()
 {
-    char pat[11] = "swag";
+    char pat[11] = "cool";
     setup_compute();
     int i;
-    execute_compute(100, pat, 0);
+    for (i = 0; i < 128; i++)
+        execute_compute(65535*i, pat, 0);
+
     cleanup_compute();
     return 0;
 }

@@ -15,6 +15,7 @@
 
 #define MAX_PW_LEN 8
 
+
 inline int
 ascii_to_bin(__private char ch)
 {
@@ -105,9 +106,11 @@ inline int des_setkey(__global uint *key_perm_maskl_flat,
 
 	*data_old_rawkey0 = rawkey0;
 	*data_old_rawkey1 = rawkey1;
-    #ifdef debuf
+    #ifdef debug
+    #ifdef PRINTF_OK
     printf("%u\n", *data_old_rawkey0);
     printf("%u\n", *data_old_rawkey1);
+    #endif
     #endif
 
 
@@ -133,8 +136,10 @@ inline int des_setkey(__global uint *key_perm_maskl_flat,
 	   | key_perm_maskr_flat[(6*128) + ((rawkey1 >> 9) & 0x7f)]
 	   | key_perm_maskr_flat[(7*128) + ((rawkey1 >> 1) & 0x7f)];
     #ifdef debug
+    #ifdef PRINTF_OK
     printf("%u\n", key_perm_maskl_flat[(0*128) + rawkey0 >> 25]);
     printf("%u\n", key_perm_maskl_flat[(3*128) + ((rawkey0 >> 1) & 0x7f)]);
+    #endif
     #endif
 
 	/*
@@ -303,9 +308,11 @@ do_des(__global uchar *m_sbox_flat,
 		| fp_maskr_flat[(6*256) + ((r >> 8) & 0xff)]
 		| fp_maskr_flat[(7*256) + (r & 0xff)];
     #ifdef debug
+    #ifdef PRINTF_OK
     printf("l, r\n");
     printf("%u\n", *l_out);
     printf("%u\n", *r_out); 
+    #endif
     #endif
     return(0);	
 }
@@ -335,9 +342,11 @@ char * __crypt_extended_r(__global uchar *m_sbox_flat,
                         )                       
 {
     #ifdef debug
+    #ifdef PRINTF_OK
     int k; 
     printf("initial output\n");
     printf("\n");
+    #endif
     #endif
 
     char	ascii64[] =
@@ -362,7 +371,7 @@ char * __crypt_extended_r(__global uchar *m_sbox_flat,
                key_perm_maskr_flat,
                comp_maskl_flat,
                comp_maskr_flat,
-               keybuf, 
+               (uchar *) keybuf, 
                data_en_keysl,
                data_en_keysr,
                data_de_keysl,
@@ -372,6 +381,7 @@ char * __crypt_extended_r(__global uchar *m_sbox_flat,
                data_output
               );
     #ifdef debug
+    #ifdef PRINTF_OK
     printf("output after setkey\n");
     for (k = 0; k < 16; k++)
         printf("%u", data_en_keysl[k]);
@@ -379,6 +389,7 @@ char * __crypt_extended_r(__global uchar *m_sbox_flat,
 
     printf("%s\n", data_output);
     #endif 
+    #endif
     /*
      * "old"-style:
      *	setting - 2 chars of salt
@@ -394,17 +405,22 @@ char * __crypt_extended_r(__global uchar *m_sbox_flat,
     data_output[1] = 1;
     p = (uchar *) data_output + 2;
     #ifdef debug
+    #ifdef PRINTF_OK
     printf("output before setup_salt\n");
     printf("%s\n", data_output);
     for (k = 0; k < 8; k++)
         printf("%u", data_output[k]);
     printf("\n");
     #endif
+    #endif
     setup_salt(salt, data_saltbits, data_old_salt);
     #ifdef debug
+    #ifdef PRINTF_OK
+
     printf("output after setup_salt\n");
     printf("%u\n", *data_saltbits);
     printf("%u\n", *data_old_salt);
+    #endif
     #endif
   	/*
 	 * Do it.
@@ -454,7 +470,7 @@ char * __crypt_extended_r(__global uchar *m_sbox_flat,
 inline void str_tolower(__private char* src, __private char * dest)
 {
     int i;
-    for (i = 0; i < TRUNCATE_LEN; i++)
+    for (i = 0; i < TRUNCATE_LEN + 1; i++)
     {
         if (src[i] > REPLACE_MAX && src[i] < REPLACE_MIN_2)
             dest[i] = src[i] + 32;
@@ -467,15 +483,19 @@ inline int strstr(__private char *target, __private char *src)
 {
     int i;
     int j;
-    for (i = 0; target[i]; i++)
+    for(i = 0; target[i]; i++)
     {
         j = 0;
         while (target[i+j] == src[j])
         {
             if (!src[j+1])
+            {
                 return 1;
+            }
             else
+            {
                 j++;
+            }
         }
     } 
     return 0;
@@ -595,7 +615,11 @@ void triperino(__global uchar *m_sbox_flat,
     uint found = 0;
 
     char test[] = "TESTERINO";
-    if (idx == 0 && strstr((char *)hash, test))
+    char configt[2];
+    configt[0] = config[20];
+    configt[1] = '\0';
+    strstr(configt, test);
+    if (idx == 0 && 0 && strstr((char *)&config[19], test))
     {    
         char key1[] = "tripcode";
         salterino(key1, setting);
@@ -621,11 +645,13 @@ void triperino(__global uchar *m_sbox_flat,
         {
             pw[c] = data_output[c]; 
         }
+        #ifdef PRINTF_OK 
         printf("%s\n", data_output);
         if (strstr((char *) data_output, test1))
             printf("TEST 1 PASSED\n");
         else
             printf("TEST 1 FAILED\n");
+        #endif
     }
     else
     {
@@ -645,7 +671,7 @@ void triperino(__global uchar *m_sbox_flat,
             } 
             data_old_rawkey0 = 0; 
             data_old_rawkey1 = 0;
-
+        
 
             salterino(key, setting);
             output = __crypt_extended_r(m_sbox_flat,
@@ -662,11 +688,13 @@ void triperino(__global uchar *m_sbox_flat,
         data_en_keysl, data_en_keysr, data_de_keysl, data_de_keysr,\
         &data_old_rawkey0, &data_old_rawkey1, data_output);
         shifterino((char *) data_output); 
+    
         if (!case_sens)
+        {
             str_tolower((char *) data_output, (char *) lower_data_output);
+        }
         if ((!case_sens && strstr((char *) lower_data_output, pat)) ||
-            strstr(data_output, pat) 
-            )
+            strstr(data_output, pat))
         {
             //printf("%u %s\n", idx, data_output);
             for(i = 0; i < MAX_PW_LEN + 1; i++)
