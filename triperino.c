@@ -65,6 +65,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <ctype.h>
 
 #include <CL/cl.h>
 #include <assert.h>
@@ -72,11 +73,11 @@
 #include "triperino_kernel.h"
 
 #define CBUFSIZ 512
-
+static const uint32_t trips_per_item = 131072;
 typedef enum {ICPU, GPU} hardware_t; 
 
 hardware_t target_platform = ICPU;
-const size_t global_worksize[1] = {4};
+const size_t global_worksize[1] = {512};
 size_t local_worksize[1];
 cl_int status;
 cl_uint num_platforms;
@@ -210,6 +211,9 @@ cl_mem buf_comp_maskl, buf_comp_maskr;
 /* get the results back from the kernel */
 cl_mem buf_pw;
 cl_mem buf_hash;
+
+/* configuration */
+cl_mem buf_config;
 
 /* flatten _crypt_extended_init data for sending to device memory */
 static void flatten_init(void)
@@ -437,10 +441,14 @@ void extended_init_flat(void)
     assert(!status);
 
     buf_pw = clCreateBuffer(context, CL_MEM_READ_WRITE,\
-        global_worksize[0]*9*sizeof(char), NULL, &status);
+        trips_per_item*global_worksize[0]*11*sizeof(char), NULL, &status);
     assert(!status);
     buf_hash = clCreateBuffer(context, CL_MEM_READ_WRITE,\
-        global_worksize[0]*9*sizeof(char), NULL, &status);
+        trips_per_item*global_worksize[0]*11*sizeof(char), NULL, &status);
+    assert(!status);
+
+    buf_config = clCreateBuffer(context, CL_MEM_READ_ONLY,\
+        32*sizeof(char), NULL, &status);
     assert(!status);
     
     /* write to device memory */
@@ -476,11 +484,14 @@ void extended_init_flat(void)
     assert(!status);
     
     char test[11] = "TESTERINO";
-    printf("%c\n", test[0]);
     /*
-    clEnqueueWriteBuffer(cmd_queue, buf_hash, CL_TRUE, 0,\
+    clEnqueueWriteBuffer(cmd_queue, buf_config, CL_TRUE, 0,\
         12*sizeof(char), test, 0, NULL, NULL);
     */
+    /* write trips per item */
+    clEnqueueWriteBuffer(cmd_queue, buf_config, CL_TRUE, 0,\
+    sizeof(uint32_t), (char *) &trips_per_item, 0, NULL, NULL);
+
     assert(!status);
 }
 
@@ -559,25 +570,64 @@ void setup_compute(void)
     assert(!status);
     status = clSetKernelArg(triperino_kernel, 11, sizeof(cl_mem), &buf_hash);
     assert(!status);
+    status = clSetKernelArg(triperino_kernel, 12, sizeof(cl_mem), &buf_config);
+    assert(!status);
+
 }
 
-void execute_compute(void)
+void execute_compute(int seed_offset, char pat[11], char case_sens)
 {
-    local_worksize[0] = 1;
+    /* write the seed */
+    clEnqueueWriteBuffer(cmd_queue, buf_config, CL_TRUE, 4,\
+    sizeof(int), (char *) &seed_offset, 0, NULL, NULL);
+    assert(!status);
+    if (!case_sens)
+    {
+        int i;
+        for(i = 0; pat[i]; i++)
+        {
+           pat[i] = tolower(pat[i]);
+        }
+    }
+    /* write pattern and case_sensitive flag */
+    clEnqueueWriteBuffer(cmd_queue, buf_config, CL_TRUE, 8,\
+    11*sizeof(char), (char *) pat, 0, NULL, NULL);
+    assert(!status);
+    clEnqueueWriteBuffer(cmd_queue, buf_config, CL_TRUE, 19,\
+    1*sizeof(char), &case_sens, 0, NULL, NULL);
+    assert(!status);
+
+    local_worksize[0] = 64;
     status = clEnqueueNDRangeKernel(cmd_queue, triperino_kernel, 1, NULL,\
         global_worksize, local_worksize, 0, NULL, NULL);
     assert(!status);
-    char pw[global_worksize[0]];
-    char hash[global_worksize[0]* 9];
+
+    char *pw = malloc(trips_per_item*global_worksize[0]*9*sizeof(char));
+    char *hash = malloc(trips_per_item*global_worksize[0]*11*sizeof(char));
+
     status = clEnqueueReadBuffer(cmd_queue, buf_pw, CL_TRUE, 0,\
-    global_worksize[0]*9*sizeof(char), pw, 0, NULL, NULL);
+    trips_per_item*global_worksize[0]*9*sizeof(char), pw, 0, NULL, NULL);
     assert(!status);
     status = clEnqueueReadBuffer(cmd_queue, buf_hash, CL_TRUE, 0,\
-    global_worksize[0]*9*sizeof(char), hash, 0, NULL, NULL);
-    
+    trips_per_item*global_worksize[0]*11*sizeof(char), hash, 0, NULL, NULL);
     assert(!status);
-    //printf("%s\n", pw);  
 
+     
+    int i;
+    for (i = 0; i < global_worksize[0]; i++)
+    {
+        int j = 0;
+        while(strlen(&hash[i*trips_per_item*11 + j*11]) > 0 && j < 5)
+        {
+            printf("%-8s....%s\n", &pw[i*trips_per_item*9 + j*11],\
+             &hash[i*trips_per_item*11 + j*11]);
+            j++;
+        }
+    }
+
+    //printf("%s\n", pw);  
+    free(pw);
+    free(hash);
 }
 
 void cleanup_compute(void)
@@ -616,12 +666,10 @@ void cleanup_compute(void)
 
 int main()
 {
+    char pat[11] = "swag";
     setup_compute();
     int i;
-    for (i = 0; i < 16; i++)
-        printf("%u", key_perm_maskr_flat[i]);
-    printf("\n");
-    execute_compute();
+    execute_compute(100, pat, 0);
     cleanup_compute();
     return 0;
 }

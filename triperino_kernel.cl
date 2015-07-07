@@ -451,6 +451,18 @@ char * __crypt_extended_r(__global uchar *m_sbox_flat,
 	return(data_output);
 }
 
+inline void str_tolower(__private char* src, __private char * dest)
+{
+    int i;
+    for (i = 0; i < TRUNCATE_LEN; i++)
+    {
+        if (src[i] > REPLACE_MAX && src[i] < REPLACE_MIN_2)
+            dest[i] = src[i] + 32;
+        else
+            dest[i] = src[i];
+    }
+}
+
 inline int strstr(__private char *target, __private char *src)
 {
     int i;
@@ -479,7 +491,8 @@ inline int strlen(__private char *str)
 inline void shifterino(__private char *hash)
 {
     int i;
-    int start = strlen(hash) - TRUNCATE_LEN;
+    /* length guaranteed to be 13 */
+    int start = 13 - TRUNCATE_LEN;
     for (i = 0; i <= TRUNCATE_LEN; i++)
     {
         hash[i] = hash[start + i];
@@ -545,9 +558,21 @@ void triperino(__global uchar *m_sbox_flat,
           __global uint *comp_maskl_flat,
           __global uint *comp_maskr_flat,
           __global uchar *pw,
-          __global uchar *hash)
+          __global uchar *hash,
+          __global uchar *config)
 {
-     uint data_saltbits = 0;
+    /* get how much work to do per item in hash */
+    uint trips_per_item = config[0] + (config[1] << 8 ) + (config[2] << 16) +\
+    (config[3] << 24);
+    /* get random seed */
+    uint seed = config[4] + (config[5] << 8) + (config[6] << 16) + (config[7] << 24);
+    /* get pattern */
+    int i;
+    char pat[11];
+    for (i = 0; i < TRUNCATE_LEN + 1; i++)
+        pat[i] = config[i+8]; 
+
+    uint data_saltbits = 0;
     uint data_old_salt = 0;
     uint data_en_keysl[16] = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
     uint data_en_keysr[16] = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
@@ -556,16 +581,18 @@ void triperino(__global uchar *m_sbox_flat,
     uint data_old_rawkey0 = 0; 
     uint data_old_rawkey1 = 0;
     char data_output[21] = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
-    char key[] = "asdfasdf";
+    char lower_data_output[21];
+    char key[9] = "asdfasdf";
     char setting[3];
     char *output;
+    char case_sens = config[19];
     int idx = get_global_id(0);
     uint x, y, z, w;
-    x = idx + 100;
-    y = idx + 200;
-    z = idx + 300;
-    w = idx + 400;
-    
+    x = idx + 11 * seed;
+    y = idx + 13 * seed;
+    z = idx + 17 * seed;
+    w = idx + 19 * seed;
+    uint found = 0;
 
     char test[] = "TESTERINO";
     if (idx == 0 && strstr((char *)hash, test))
@@ -602,10 +629,23 @@ void triperino(__global uchar *m_sbox_flat,
     }
     else
     {
-        int i = 0;
-        while (i < 1000000)
+        uint trips = 0;
+        while (trips < trips_per_item)
         {
             generate_pw_fast(&x, &y, &z, &w, (char *) key);
+
+            data_saltbits = 0;
+            data_old_salt = 0;
+            for (i = 0; i < 16; i++)
+            {
+                data_en_keysl[i] = 0;
+                data_en_keysr[i] = 0;
+                data_de_keysl[i] = 0;
+                data_de_keysr[i] = 0; 
+            } 
+            data_old_rawkey0 = 0; 
+            data_old_rawkey1 = 0;
+
 
             salterino(key, setting);
             output = __crypt_extended_r(m_sbox_flat,
@@ -621,11 +661,35 @@ void triperino(__global uchar *m_sbox_flat,
         key, setting, &data_saltbits, &data_old_salt,\
         data_en_keysl, data_en_keysr, data_de_keysl, data_de_keysr,\
         &data_old_rawkey0, &data_old_rawkey1, data_output);
-        char pat[] = "COOL"; 
         shifterino((char *) data_output); 
-        if (strstr((char *) data_output, pat))
-            printf("%s...\%s\n", key, data_output);
-            i++;
-        } 
+        if (!case_sens)
+            str_tolower((char *) data_output, (char *) lower_data_output);
+        if ((!case_sens && strstr((char *) lower_data_output, pat)) ||
+            strstr(data_output, pat) 
+            )
+        {
+            //printf("%u %s\n", idx, data_output);
+            for(i = 0; i < MAX_PW_LEN + 1; i++)
+            {
+                pw[(trips_per_item*idx*(MAX_PW_LEN + 1)) + found*(MAX_PW_LEN + 1) + i] = key[i]; 
+            }
+            for(i = 0; i < TRUNCATE_LEN + 1; i++)
+            {
+                hash[(trips_per_item*idx*(TRUNCATE_LEN + 1)) + found*(TRUNCATE_LEN + 1) + i] = data_output[i]; 
+            }
+            found++;
+        }
+            trips++;
+        }
+        /* should basically always reach this as finding trips_per_item trips is
+         * almost statistically impossible */
+        if (found < trips_per_item)
+        {
+            /* mark the end of current trips with an empty string */
+            hash[(trips_per_item*idx*(TRUNCATE_LEN + 1)) + found*(TRUNCATE_LEN+1)] = 0; 
+            hash[(trips_per_item*idx*(TRUNCATE_LEN + 1)) + found*(TRUNCATE_LEN+2)] = 0; 
+            pw[(trips_per_item*idx*(MAX_PW_LEN + 1)) + found*(MAX_PW_LEN+1)]=0;
+            pw[(trips_per_item*idx*(MAX_PW_LEN + 1)) + found*(MAX_PW_LEN+2)]=0;
+        }
     }
 } 
