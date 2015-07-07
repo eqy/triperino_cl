@@ -619,7 +619,7 @@ void execute_compute(int seed_offset, char pat[11], char case_sens)
         int j = 0;
         while(strlen(&hash[i*trips_per_item*11 + j*11]) > 0 && j < 5)
         {
-            printf("%-8s....%s\n", &pw[i*trips_per_item*9 + j*11],\
+            printf("%-8s....%s\n", &pw[i*trips_per_item*9 + j*9],\
              &hash[i*trips_per_item*11 + j*11]);
             j++;
         }
