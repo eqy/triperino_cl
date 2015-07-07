@@ -73,11 +73,11 @@
 #include "triperino_kernel.h"
 
 #define CBUFSIZ 512
-static const uint32_t trips_per_item = 262144;
+static const uint32_t trips_per_item = 16384;
 typedef enum {ICPU, GPU} hardware_t; 
 
 hardware_t target_platform = ICPU;
-const size_t global_worksize[1] = {512};
+const size_t global_worksize[1] = {4096};
 size_t local_worksize[1];
 cl_int status;
 cl_uint num_platforms;
@@ -597,7 +597,7 @@ void execute_compute(int seed_offset, char pat[11], char case_sens)
     1*sizeof(char), &case_sens, 0, NULL, NULL);
     assert(!status);
 
-    local_worksize[0] = 64;
+    local_worksize[0] = 128;
     status = clEnqueueNDRangeKernel(cmd_queue, triperino_kernel, 1, NULL,\
         global_worksize, local_worksize, 0, NULL, NULL);
     assert(!status);
