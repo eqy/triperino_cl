@@ -73,7 +73,7 @@
 #include "triperino_kernel.h"
 
 #define CBUFSIZ 512
-static const uint32_t trips_per_item = 131072;
+static const uint32_t trips_per_item = 262144;
 typedef enum {ICPU, GPU} hardware_t; 
 
 hardware_t target_platform = ICPU;
