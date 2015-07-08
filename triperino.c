@@ -69,17 +69,18 @@
 
 #include <CL/cl.h>
 #include <assert.h>
+#include <sys/time.h>
 
 #include "triperino_kernel.h"
 
 #define CBUFSIZ 512
-static const uint32_t trips_per_item = 32;
+static const uint32_t trips_per_item = 8;
 typedef enum {IntelCPU, NvidiaGPU} hardware_t; 
 
 #define OPENCL1_0
 
 hardware_t target_platform = NvidiaGPU;
-const size_t global_worksize[1] = {65535};
+const size_t global_worksize[1] = {1048576};
 size_t local_worksize[1];
 cl_int status;
 cl_uint num_platforms;
@@ -543,6 +544,11 @@ void setup_compute(void)
     cmd_queue = clCreateCommandQueue(context, devices[0], 0, &status);
     assert(!status);
     #endif 
+   
+    ulong size;
+    clGetDeviceInfo(devices[0], CL_DEVICE_LOCAL_MEM_SIZE, sizeof(cl_ulong),\
+    &size, 0);
+    printf("Local Memory Limit is %lu bytes\n", size);
     
     extended_init_flat();
 
@@ -692,12 +698,20 @@ void cleanup_compute(void)
 
 int main()
 {
-    char pat[11] = "cool";
+    struct timeval m_time;
+    struct timeval old_time;
+    char pat[11] = "nvidia";
     setup_compute();
     int i;
-    for (i = 0; i < 128; i++)
-        execute_compute(65535*i, pat, 0);
-
+    for (i = 0; i < 64; i++)
+    {
+        gettimeofday(&old_time, NULL);
+        execute_compute(global_worksize[0]*i + 9999, pat, 0);
+        gettimeofday(&m_time, NULL);
+        printf("%f\n", (global_worksize[0]*trips_per_item)/\
+       ((m_time.tv_sec + m_time.tv_usec*1e-6) -\
+       (old_time.tv_sec + old_time.tv_usec*1e-6)));
+    }
     cleanup_compute();
     return 0;
 }

@@ -61,10 +61,10 @@ setup_salt(__private uint salt,
     #endif
 }
 
-inline int des_setkey(__global uint *key_perm_maskl_flat,
-                  __global uint *key_perm_maskr_flat,
-                  __global uint *comp_maskl_flat,
-                  __global uint *comp_maskr_flat,
+inline int des_setkey(__local uint *key_perm_maskl_flat,
+                  __local uint *key_perm_maskr_flat,
+                  __local uint *comp_maskl_flat,
+                  __local uint *comp_maskr_flat,
                   __private char *key, 
                   __private uint *data_en_keysl,
                   __private uint *data_en_keysr,
@@ -178,8 +178,8 @@ inline int des_setkey(__global uint *key_perm_maskl_flat,
 }
 
 inline int
-do_des(__global uchar *m_sbox_flat,
-       __global uint *psbox_flat,
+do_des(__local uchar *m_sbox_flat,
+       __local uint *psbox_flat,
        __global uint *ip_maskl_flat,
        __global uint *ip_maskr_flat,
        __global uint *fp_maskl_flat,
@@ -274,10 +274,11 @@ do_des(__global uchar *m_sbox_flat,
 			 * Do sbox lookups (which shrink it back to 32 bits)
 			 * and do the pbox permutation at the same time.
 			 */
-			f = psbox_flat[(0*256) + m_sbox_flat[(0*4096) + (r48l >> 12)]]
+			f = psbox_flat[m_sbox_flat[(0*4096) + (r48l >> 12)]]
 			  | psbox_flat[(1*256) + m_sbox_flat[(1*4096) + (r48l & 0xfff)]]
 			  | psbox_flat[(2*256) + m_sbox_flat[(2*4096) + (r48r >> 12)]]
 			  | psbox_flat[(3*256) + m_sbox_flat[(3*4096) + (r48r & 0xfff)]];
+    
 			/*
 			 * Now that we've permuted things, complete f().
 			 */
@@ -318,16 +319,16 @@ do_des(__global uchar *m_sbox_flat,
 }
 
 
-char * __crypt_extended_r(__global uchar *m_sbox_flat,
-                        __global uint *psbox_flat,
+char * __crypt_extended_r(__local uchar *m_sbox_flat,
+                        __local uint *psbox_flat,
                         __global uint *ip_maskl_flat,
                         __global uint *ip_maskr_flat,
                         __global uint *fp_maskl_flat,
                         __global uint *fp_maskr_flat,
-                        __global uint *key_perm_maskl_flat,
-                        __global uint *key_perm_maskr_flat,
-                        __global uint *comp_maskl_flat,
-                        __global uint *comp_maskr_flat,
+                        __local uint *key_perm_maskl_flat,
+                        __local uint *key_perm_maskr_flat,
+                        __local uint *comp_maskl_flat,
+                        __local uint *comp_maskr_flat,
                         __private char *key,
                         __private char *setting,
                         __private uint *data_saltbits,
@@ -366,7 +367,6 @@ char * __crypt_extended_r(__global uchar *m_sbox_flat,
 		if (*key)
 			key++;
 	}
-    
     des_setkey(key_perm_maskl_flat,
                key_perm_maskr_flat,
                comp_maskl_flat,
@@ -592,6 +592,37 @@ void triperino(__global uchar *m_sbox_flat,
     for (i = 0; i < TRUNCATE_LEN + 1; i++)
         pat[i] = config[i+8]; 
 
+    __local uchar m_sbox_flat_local[4*4096];
+    __local uint psbox_flat_local[4*256];
+    __local uint key_perm_maskl_flat_local[8*128];
+    __local uint key_perm_maskr_flat_local[8*128];
+    __local uint comp_maskl_flat_local[8*256];
+    __local uint comp_maskr_flat_local[8*256];
+    
+    uint init = get_local_id(0);
+    uint step = get_local_size(0);
+    
+    for (i = init; i < 16384; i+= step)
+    {
+        m_sbox_flat_local[i] = m_sbox_flat[i];
+    }
+    for (i = init; i < 4*256; i+= step)
+    {
+        psbox_flat_local[i] = psbox_flat[i];
+    }
+    for (i = init; i < 8*128; i+= step)
+    {
+        key_perm_maskl_flat_local[i] = key_perm_maskl_flat[i];
+        key_perm_maskr_flat_local[i] = key_perm_maskr_flat[i];
+    }
+    for (i = init; i < 8*256; i+= step)
+    {
+        comp_maskl_flat_local[i] = comp_maskl_flat[i];
+        comp_maskr_flat_local[i] = comp_maskr_flat[i];
+    }
+
+    barrier(CLK_LOCAL_MEM_FENCE);
+
     uint data_saltbits = 0;
     uint data_old_salt = 0;
     uint data_en_keysl[16] = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
@@ -608,10 +639,10 @@ void triperino(__global uchar *m_sbox_flat,
     char case_sens = config[19];
     int idx = get_global_id(0);
     uint x, y, z, w;
-    x = idx + 11 * seed;
-    y = idx + 13 * seed;
-    z = idx + 17 * seed;
-    w = idx + 19 * seed;
+    x = idx + seed;
+    y = idx + seed;
+    z = idx + seed;
+    w = idx + seed;
     uint found = 0;
 
     char test[] = "TESTERINO";
@@ -625,16 +656,16 @@ void triperino(__global uchar *m_sbox_flat,
         salterino(key1, setting);
         char test1[] = "3GqYIJ3Obs";
 
-    char *output = __crypt_extended_r(m_sbox_flat,
-                       psbox_flat,
+    char *output = __crypt_extended_r(m_sbox_flat_local,
+                       psbox_flat_local,
                        ip_maskl_flat,
                        ip_maskr_flat,
                        fp_maskl_flat,
                        fp_maskr_flat,
-                       key_perm_maskl_flat,
-                       key_perm_maskr_flat,
-                       comp_maskl_flat,
-                       comp_maskr_flat,
+                       key_perm_maskl_flat_local,
+                       key_perm_maskr_flat_local,
+                       comp_maskl_flat_local,
+                       comp_maskr_flat_local,
         key1, setting, &data_saltbits, &data_old_salt,\
         data_en_keysl, data_en_keysr, data_de_keysl, data_de_keysr,\
         &data_old_rawkey0, &data_old_rawkey1, data_output);
@@ -662,6 +693,7 @@ void triperino(__global uchar *m_sbox_flat,
 
             data_saltbits = 0;
             data_old_salt = 0;
+            /*
             for (i = 0; i < 16; i++)
             {
                 data_en_keysl[i] = 0;
@@ -669,21 +701,22 @@ void triperino(__global uchar *m_sbox_flat,
                 data_de_keysl[i] = 0;
                 data_de_keysr[i] = 0; 
             } 
+            */
             data_old_rawkey0 = 0; 
             data_old_rawkey1 = 0;
         
 
             salterino(key, setting);
-            output = __crypt_extended_r(m_sbox_flat,
-                       psbox_flat,
+            output = __crypt_extended_r(m_sbox_flat_local,
+                       psbox_flat_local,
                        ip_maskl_flat,
                        ip_maskr_flat,
                        fp_maskl_flat,
                        fp_maskr_flat,
-                       key_perm_maskl_flat,
-                       key_perm_maskr_flat,
-                       comp_maskl_flat,
-                       comp_maskr_flat,
+                       key_perm_maskl_flat_local,
+                       key_perm_maskr_flat_local,
+                       comp_maskl_flat_local,
+                       comp_maskr_flat_local,
         key, setting, &data_saltbits, &data_old_salt,\
         data_en_keysl, data_en_keysr, data_de_keysl, data_de_keysr,\
         &data_old_rawkey0, &data_old_rawkey1, data_output);
