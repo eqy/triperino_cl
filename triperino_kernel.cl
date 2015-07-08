@@ -61,6 +61,11 @@ setup_salt(__private uint salt,
     #endif
 }
 
+__constant     uchar	key_shifts[16] = {
+        1, 1, 2, 2, 2, 2, 2, 2, 1, 2, 2, 2, 2, 2, 2, 1
+    };
+
+
 inline int des_setkey(__local uint *key_perm_maskl_flat,
                   __local uint *key_perm_maskr_flat,
                   __local uint *comp_maskl_flat,
@@ -75,9 +80,6 @@ inline int des_setkey(__local uint *key_perm_maskl_flat,
                   __private char *data_output
                  )
 {
-    uchar	key_shifts[16] = {
-        1, 1, 2, 2, 2, 2, 2, 2, 1, 2, 2, 2, 2, 2, 2, 1
-    };
 
     uint	k0, k1, rawkey0, rawkey1;
 	int	shifts, round;
@@ -202,24 +204,30 @@ do_des(__local uchar *m_sbox_flat,
 	uint	l, r, *kl, *kr, *kl1, *kr1;
 	uint	f, r48l, r48r, saltbits;
 	int	round;
-    
+
+    /* count always > 0 */
+    /*    
     if (count == 0) {
     return(1);
 	} else if (count > 0) {
+    */
 		/*
 		 * Encrypting
 		 */
 		kl1 = data_en_keysl;
 		kr1 = data_en_keysr;
+    /*
 	} else {
+    */
 		/*
 		 * Decrypting
 		 */
+    /*
 		count = -count;
 		kl1 = data_de_keysl;
 		kr1 = data_de_keysr;
 	}
-
+    */
    	/*
 	 *	Do initial permutation (IP).
 	 */
@@ -354,7 +362,8 @@ char * __crypt_extended_r(__local uchar *m_sbox_flat,
 
 
     int i;
-    uint	count, salt, l, r0, r1, keybuf[2];
+    /* removed count as uint */
+    uint	salt, l, r0, r1, keybuf[2];
     uchar *p, *q;
     /* skipping initialization */
 	/*
@@ -395,7 +404,7 @@ char * __crypt_extended_r(__local uchar *m_sbox_flat,
      *	setting - 2 chars of salt
      *	key - up to 8 characters
      */
-    count = 25;
+    //count = 25;
     
 
     salt = (ascii_to_bin(setting[1]) << 6)
@@ -435,7 +444,7 @@ char * __crypt_extended_r(__local uchar *m_sbox_flat,
            0, 
            &r0,
            &r1,
-           count,
+           25,
            data_saltbits,
            data_en_keysl,
            data_en_keysr,
@@ -483,7 +492,8 @@ inline int strstr(__private char *target, __private char *src)
 {
     int i;
     int j;
-    for(i = 0; target[i]; i++)
+    /* first three bytes are shifted out later */
+    for(i = 3; target[i]; i++)
     {
         j = 0;
         while (target[i+j] == src[j])
@@ -648,9 +658,11 @@ void triperino(__global uchar *m_sbox_flat,
     uint found = 0;
 
     char test[] = "TESTERINO";
+    /*
     char configt[2];
     configt[1] = '\0';
     strstr(configt, test);
+    */
     #ifdef TESTERINO
     if (idx == 0 && 0 && strstr((char *)&config[19], test))
     {    
@@ -688,13 +700,12 @@ void triperino(__global uchar *m_sbox_flat,
     }
     #else
         uint trips = 0;
-        while (trips < trips_per_item)
+        while (trips < 256*trips_per_item && found < trips_per_item)
         {
             generate_pw_fast(&x, &y, &z, &w, (char *) key);
-
+            /* 
             data_saltbits = 0;
             data_old_salt = 0;
-            /* 
             for (i = 0; i < 16; i++)
             {
                 data_en_keysl[i] = 0;
@@ -702,10 +713,9 @@ void triperino(__global uchar *m_sbox_flat,
                 data_de_keysl[i] = 0;
                 data_de_keysr[i] = 0; 
             } 
-            */ 
             data_old_rawkey0 = 0; 
             data_old_rawkey1 = 0;
-        
+            */ 
 
             salterino(key, setting);
             output = __crypt_extended_r(m_sbox_flat_local,
@@ -721,7 +731,6 @@ void triperino(__global uchar *m_sbox_flat,
         key, setting, &data_saltbits, &data_old_salt,\
         data_en_keysl, data_en_keysr, data_de_keysl, data_de_keysr,\
         &data_old_rawkey0, &data_old_rawkey1, data_output);
-        shifterino((char *) data_output); 
     
         if (!case_sens)
         {
@@ -730,6 +739,8 @@ void triperino(__global uchar *m_sbox_flat,
         if ((!case_sens && strstr((char *) lower_data_output, pat)) ||
             strstr(data_output, pat))
         {
+            
+            shifterino((char *) data_output); 
             //printf("%u %s\n", idx, data_output);
             for(i = 0; i < MAX_PW_LEN + 1; i++)
             {

@@ -74,13 +74,14 @@
 #include "triperino_kernel.h"
 
 #define CBUFSIZ 512
-static const uint32_t trips_per_item = 256;
+static const uint32_t trips_per_item = 2;
 typedef enum {IntelCPU, NvidiaGPU} hardware_t; 
 
+#define UNSAFE_SPACE 256
 #define OPENCL1_0
 
 hardware_t target_platform = NvidiaGPU;
-const size_t global_worksize[1] = {65536};
+const size_t global_worksize[1] = {131072};
 size_t local_worksize[1];
 cl_int status;
 cl_uint num_platforms;
@@ -282,7 +283,7 @@ static void _crypt_extended_init(void)
 	uint32_t *p, *il, *ir, *fl, *fr;
 	uint32_t *bits28, *bits24;
 	u_char inv_key_perm[64];
-	u_char u_key_perm[56];
+    u_char u_key_perm[56];
 	u_char inv_comp_perm[56];
 	u_char init_perm[64], final_perm[64];
 	u_char u_sbox[8][64];
@@ -645,10 +646,10 @@ void execute_compute(int seed_offset, char pat[11], char case_sens)
     trips_per_item*global_worksize[0]*9*sizeof(char), pw, 0, NULL, NULL);
     assert(!status);
     
-    int i;
+    unsigned int i;
     for (i = 0; i < global_worksize[0]; i++)
     {
-        int j = 0;
+        unsigned int j = 0;
         while(strlen(&hash[i*trips_per_item*11 + j*11]) > 0 && j < trips_per_item)
         {
             printf("%-8s....%s\n", &pw[i*trips_per_item*9 + j*9],\
@@ -700,7 +701,7 @@ int main()
 {
     struct timeval m_time;
     struct timeval old_time;
-    char pat[11] = "OPENC";
+    char pat[11] = "OPENCL";
     setup_compute();
     int i;
     for (i = 0; i < 8; i++)
@@ -708,7 +709,7 @@ int main()
         gettimeofday(&old_time, NULL);
         execute_compute(global_worksize[0]*i + 9999, pat, 0);
         gettimeofday(&m_time, NULL);
-        printf("%f\n", (global_worksize[0]*trips_per_item)/\
+        printf("%f\n", (global_worksize[0]*trips_per_item*UNSAFE_SPACE)/\
        ((m_time.tv_sec + m_time.tv_usec*1e-6) -\
        (old_time.tv_sec + old_time.tv_usec*1e-6)));
     }
