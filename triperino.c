@@ -74,13 +74,13 @@
 #include "triperino_kernel.h"
 
 #define CBUFSIZ 512
-static const uint32_t trips_per_item = 8;
+static const uint32_t trips_per_item = 256;
 typedef enum {IntelCPU, NvidiaGPU} hardware_t; 
 
 #define OPENCL1_0
 
 hardware_t target_platform = NvidiaGPU;
-const size_t global_worksize[1] = {1048576};
+const size_t global_worksize[1] = {65536};
 size_t local_worksize[1];
 cl_int status;
 cl_uint num_platforms;
@@ -644,12 +644,12 @@ void execute_compute(int seed_offset, char pat[11], char case_sens)
     status = clEnqueueReadBuffer(cmd_queue, buf_pw, CL_TRUE, 0,\
     trips_per_item*global_worksize[0]*9*sizeof(char), pw, 0, NULL, NULL);
     assert(!status);
-     
+    
     int i;
     for (i = 0; i < global_worksize[0]; i++)
     {
         int j = 0;
-        while(strlen(&hash[i*trips_per_item*11 + j*11]) > 0 && j < 5)
+        while(strlen(&hash[i*trips_per_item*11 + j*11]) > 0 && j < trips_per_item)
         {
             printf("%-8s....%s\n", &pw[i*trips_per_item*9 + j*9],\
              &hash[i*trips_per_item*11 + j*11]);
@@ -700,10 +700,10 @@ int main()
 {
     struct timeval m_time;
     struct timeval old_time;
-    char pat[11] = "nvidia";
+    char pat[11] = "OPENC";
     setup_compute();
     int i;
-    for (i = 0; i < 64; i++)
+    for (i = 0; i < 8; i++)
     {
         gettimeofday(&old_time, NULL);
         execute_compute(global_worksize[0]*i + 9999, pat, 0);

@@ -180,10 +180,10 @@ inline int des_setkey(__local uint *key_perm_maskl_flat,
 inline int
 do_des(__local uchar *m_sbox_flat,
        __local uint *psbox_flat,
-       __global uint *ip_maskl_flat,
-       __global uint *ip_maskr_flat,
-       __global uint *fp_maskl_flat,
-       __global uint *fp_maskr_flat,
+       __constant uint *ip_maskl_flat,
+       __constant uint *ip_maskr_flat,
+       __constant uint *fp_maskl_flat,
+       __constant uint *fp_maskr_flat,
        __private uint l_in, 
        __private uint r_in, 
        __private uint *l_out,
@@ -318,13 +318,15 @@ do_des(__local uchar *m_sbox_flat,
     return(0);	
 }
 
+__constant char	ascii64[] =
+	 "./0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
 
 char * __crypt_extended_r(__local uchar *m_sbox_flat,
                         __local uint *psbox_flat,
-                        __global uint *ip_maskl_flat,
-                        __global uint *ip_maskr_flat,
-                        __global uint *fp_maskl_flat,
-                        __global uint *fp_maskr_flat,
+                        __constant uint *ip_maskl_flat,
+                        __constant uint *ip_maskr_flat,
+                        __constant uint *fp_maskl_flat,
+                        __constant uint *fp_maskr_flat,
                         __local uint *key_perm_maskl_flat,
                         __local uint *key_perm_maskr_flat,
                         __local uint *comp_maskl_flat,
@@ -350,8 +352,6 @@ char * __crypt_extended_r(__local uchar *m_sbox_flat,
     #endif
     #endif
 
-    char	ascii64[] =
-	 "./0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
 
     int i;
     uint	count, salt, l, r0, r1, keybuf[2];
@@ -457,13 +457,13 @@ char * __crypt_extended_r(__local uchar *m_sbox_flat,
 	p[5] = ascii64[(l >> 12) & 0x3f];
 	p[6] = ascii64[(l >> 6) & 0x3f];
 	p[7] = ascii64[l & 0x3f];
-
-	l = r1 << 2;
+	
+    l = r1 << 2;
 	p[8] = ascii64[(l >> 12) & 0x3f];
 	p[9] = ascii64[(l >> 6) & 0x3f];
 	p[10] = ascii64[l & 0x3f];
 	p[11] = 0;
-
+    
 	return(data_output);
 }
 
@@ -488,14 +488,11 @@ inline int strstr(__private char *target, __private char *src)
         j = 0;
         while (target[i+j] == src[j])
         {
-            if (!src[j+1])
-            {
-                return 1;
-            }
-            else
-            {
-                j++;
-            }
+            j++;
+        }
+        if (!src[j])
+        {
+            return 1;
         }
     } 
     return 0;
@@ -510,13 +507,18 @@ inline int strlen(__private char *str)
 
 inline void shifterino(__private char *hash)
 {
-    int i;
     /* length guaranteed to be 13 */
-    int start = 13 - TRUNCATE_LEN;
-    for (i = 0; i <= TRUNCATE_LEN; i++)
-    {
-        hash[i] = hash[start + i];
-    }
+    hash[0] = hash[3];
+    hash[1] = hash[4];
+    hash[2] = hash[5];
+    hash[3] = hash[6];
+    hash[4] = hash[7];
+    hash[5] = hash[8];
+    hash[6] = hash[9];
+    hash[7] = hash[10];
+    hash[8] = hash[11];
+    hash[9] = hash[12];
+    hash[10] = '\0';
 }
 
 inline void salterino(__private char *pw, __private char *salt)
@@ -524,11 +526,12 @@ inline void salterino(__private char *pw, __private char *salt)
     salt[0] = pw[1];
     salt[1] = pw[2];
     salt[2] = '\0';
+    /*
     if (salt[0] < VALID_MIN || salt[0] > VALID_MAX)
         salt[0] = '.';
     if (salt[1] < VALID_MIN || salt[1] > VALID_MAX)
         salt[0] = '.';
-
+    */
     if (salt[0] >= REPLACE_MIN && salt[0] <= REPLACE_MAX)
         salt[0] += REPLACE_OFFSET;
     else if (salt[0] >= REPLACE_MIN_2 && salt[0] <= REPLACE_MAX_2)
@@ -569,10 +572,10 @@ char *pw)
 __kernel
 void triperino(__global uchar *m_sbox_flat,
           __global uint *psbox_flat,
-          __global uint *ip_maskl_flat,
-          __global uint *ip_maskr_flat,
-          __global uint *fp_maskl_flat,
-          __global uint *fp_maskr_flat,
+          __constant uint *ip_maskl_flat,
+          __constant uint *ip_maskr_flat,
+          __constant uint *fp_maskl_flat,
+          __constant uint *fp_maskr_flat,
           __global uint *key_perm_maskl_flat,
           __global uint *key_perm_maskr_flat,
           __global uint *comp_maskl_flat,
@@ -605,18 +608,17 @@ void triperino(__global uchar *m_sbox_flat,
     for (i = init; i < 16384; i+= step)
     {
         m_sbox_flat_local[i] = m_sbox_flat[i];
-    }
-    for (i = init; i < 4*256; i+= step)
-    {
-        psbox_flat_local[i] = psbox_flat[i];
-    }
-    for (i = init; i < 8*128; i+= step)
-    {
-        key_perm_maskl_flat_local[i] = key_perm_maskl_flat[i];
-        key_perm_maskr_flat_local[i] = key_perm_maskr_flat[i];
+
     }
     for (i = init; i < 8*256; i+= step)
     {
+        /* 4*256 = 8*128 */
+        if (i < 4*256)
+        {
+            psbox_flat_local[i] = psbox_flat[i];
+            key_perm_maskl_flat_local[i] = key_perm_maskl_flat[i];
+            key_perm_maskr_flat_local[i] = key_perm_maskr_flat[i];
+        }
         comp_maskl_flat_local[i] = comp_maskl_flat[i];
         comp_maskr_flat_local[i] = comp_maskr_flat[i];
     }
@@ -633,7 +635,7 @@ void triperino(__global uchar *m_sbox_flat,
     uint data_old_rawkey1 = 0;
     char data_output[21] = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
     char lower_data_output[21];
-    char key[9] = "asdfasdf";
+    char key[9];
     char setting[3];
     char *output;
     char case_sens = config[19];
@@ -647,9 +649,9 @@ void triperino(__global uchar *m_sbox_flat,
 
     char test[] = "TESTERINO";
     char configt[2];
-    configt[0] = config[20];
     configt[1] = '\0';
     strstr(configt, test);
+    #ifdef TESTERINO
     if (idx == 0 && 0 && strstr((char *)&config[19], test))
     {    
         char key1[] = "tripcode";
@@ -684,8 +686,7 @@ void triperino(__global uchar *m_sbox_flat,
             printf("TEST 1 FAILED\n");
         #endif
     }
-    else
-    {
+    #else
         uint trips = 0;
         while (trips < trips_per_item)
         {
@@ -693,7 +694,7 @@ void triperino(__global uchar *m_sbox_flat,
 
             data_saltbits = 0;
             data_old_salt = 0;
-            /*
+            /* 
             for (i = 0; i < 16; i++)
             {
                 data_en_keysl[i] = 0;
@@ -701,7 +702,7 @@ void triperino(__global uchar *m_sbox_flat,
                 data_de_keysl[i] = 0;
                 data_de_keysr[i] = 0; 
             } 
-            */
+            */ 
             data_old_rawkey0 = 0; 
             data_old_rawkey1 = 0;
         
@@ -748,9 +749,7 @@ void triperino(__global uchar *m_sbox_flat,
         {
             /* mark the end of current trips with an empty string */
             hash[(trips_per_item*idx*(TRUNCATE_LEN + 1)) + found*(TRUNCATE_LEN+1)] = 0; 
-            hash[(trips_per_item*idx*(TRUNCATE_LEN + 1)) + found*(TRUNCATE_LEN+2)] = 0; 
             pw[(trips_per_item*idx*(MAX_PW_LEN + 1)) + found*(MAX_PW_LEN+1)]=0;
-            pw[(trips_per_item*idx*(MAX_PW_LEN + 1)) + found*(MAX_PW_LEN+2)]=0;
         }
-    }
+    #endif
 } 
